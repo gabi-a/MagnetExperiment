@@ -1,0 +1,3 @@
+[submodule "sync_board"]
+	path = sync_board
+	url = https://github.com/kmpape/sync_board.git
