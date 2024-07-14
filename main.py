@@ -3,13 +3,17 @@ from enum import Enum
 from pathlib import Path
 from datetime import datetime
 import time
+import matplotlib.pyplot as plt
 
-from pycromanager import Core, Studio
+# Add sync_board folder to path
+import sys
+sys.path.append("/home/hslab/Documents/Gabi/MagnetExperiment/sync_board")
+
 from sync_board.syncboard.syncboardcontroller import SyncBoardController
 from sync_board.syncboard.serialconnection import SerialConnection
 
-led_intensity = 0.1
-image_interval_s = 10
+led_intensity = 0.2
+interval_s = 20
 
 if led_intensity > 0.29:
     raise ValueError("LED intensity must be less than 0.29 for CW measurements.")
@@ -32,52 +36,66 @@ save_dir = Path(f"/media/hslab/Data/ImageData/Gabi/{date}/MARY/")
 if not save_dir.exists():
     os.makedirs(save_dir)
 
-syncboard_main_serial = SerialConnection("/dev/syncboard", 115200)
-syncboard_magnet_serial = SerialConnection("/dev/magnet", 115200)
-
-syncboard_main = SyncBoardController(syncboard_main_serial)
-syncboard_magnet = SyncBoardController(syncboard_magnet_serial)
-
-mmc = Core()
-studio = Studio()
+syncboard_serial = SerialConnection("/dev/syncboard", 2000000)
+syncboard = SyncBoardController(syncboard_serial)
 
 def run_experiment():
-    img = mmc.snap_image()
-    liveManager = studio.getSnapLiveManager()
-    liveManager.displayImage(img)
-
+    
     # Set up the syncboards
-    syncboard_main.attach_leds()
-    syncboard_main.enable_system()
-    syncboard_main._setup_leds()
-
-    syncboard_magnet.attach_magnet()
-    syncboard_magnet.enable_system()
-    syncboard_magnet.setup_magnet()
+    syncboard.attach_leds()
+    syncboard.attach_magnet()
+    syncboard.enable_system()
+    syncboard._setup_leds()
+    syncboard.setup_magnet()
 
     # Calibrate the magnet
-    syncboard_magnet.calibrate_magnet()
+    syncboard.calibrate_magnet()
     input("Move the Hall sensor to the sample position, then press enter to continue calibration...")
-    syncboard_magnet.calibrate_hall()
+    # syncboard.calibrate_hall(0)
 
     input("Now move back to the sample, then press enter to start the experiment...")
-    syncboard_main.enable_led(LED_IDS.LED_450_NM, led_intensity)
+    # syncboard.enable_led(LED_IDS.LED_450_NM.value, led_intensity)
+    
+    while (led_intensity := input("Enter LED intensity (0-1) or c to continue: ")) != "c":
+        led_intensity = float(led_intensity)
+        if led_intensity > 1.0:
+            print("LED intensity must be between 0 and 1.")
+            continue
+        syncboard.enable_led(LED_IDS.LED_450_NM.value, led_intensity)
+    
+    syncboard.set_magnet_current(0)
+    syncboard.enable_magnet()
 
-    for i in range(10):
-        syncboard_magnet.set_magnet_field(5 * i / 10)
-        mmc.snap_image()
-        time.sleep(image_interval_s)
+    i = 0
+    while True:
+        print(f"Iteration {i}")
+        if i % 2 == 0:
+            set_current = 0
+        else:
+            set_current = 0.5
+        print(f"Setting current to {set_current} A")
+        syncboard.set_magnet_current(set_current)
+        # field = syncboard.read_hall(0)
+        # print(f"Measured Field: {field} mT")
+        i += 1
+        time.sleep(interval_s)
 
-    syncboard_magnet.set_magnet_field(0)
+    syncboard.set_magnet_current(0)
+    syncboard.enable_magnet(False)
 
 def main():
     try:
-        run_experiment()
+        # run_experiment()
+        syncboard.attach_leds()
+        syncboard.enable_system()
+        syncboard._setup_leds()
+        time.sleep(1)
+        syncboard.enable_led(LED_IDS.LED_450_NM.value, led_intensity, 1000)
+        time.sleep(1)
     finally:
         print("Disabling syncboards.")
-        syncboard_main.disable_all_leds()
-        syncboard_main.disable_system()
-        syncboard_magnet.disable_system()
+        syncboard.disable_all_leds()
+        syncboard.disable_system()
 
 if __name__ == '__main__':
     main()
