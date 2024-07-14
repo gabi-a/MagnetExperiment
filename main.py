@@ -5,6 +5,8 @@ from datetime import datetime
 import time
 import matplotlib.pyplot as plt
 
+from pycromanager import Core, Studio
+
 # Add sync_board folder to path
 import sys
 sys.path.append("/home/hslab/Documents/Gabi/MagnetExperiment/sync_board")
@@ -12,8 +14,12 @@ sys.path.append("/home/hslab/Documents/Gabi/MagnetExperiment/sync_board")
 from sync_board.syncboard.syncboardcontroller import SyncBoardController
 from sync_board.syncboard.serialconnection import SerialConnection
 
-led_intensity = 0.2
-interval_s = 20
+from asitiger.tigercontroller import TigerController
+
+from dmd_socket import DMDControl
+
+led_intensity = 0.1
+image_interval_s = 10
 
 if led_intensity > 0.29:
     raise ValueError("LED intensity must be less than 0.29 for CW measurements.")
@@ -31,6 +37,13 @@ class LED_IDS(Enum):
     LED_505_NM = 6
     LED_538_NM = 7
 
+class FILTER_WHEEL(Enum):
+    FILTER = 0, 
+    BLOCKING = 1, 
+    NO_FILTER = 2
+
+TIGER_CARD_ADDR_FW = 8
+
 date = datetime.now().strftime("%Y-%m-%d")
 save_dir = Path(f"/media/hslab/Data/ImageData/Gabi/{date}/MARY/")
 if not save_dir.exists():
@@ -38,6 +51,22 @@ if not save_dir.exists():
 
 syncboard_serial = SerialConnection("/dev/syncboard", 2000000)
 syncboard = SyncBoardController(syncboard_serial)
+
+# $ pip install asitiger
+# Make sure filter wheel is set to the correct position
+tiger = TigerController.from_serial_port("/dev/ttyUSB0")
+tiger.filter_wheel(position=FILTER_WHEEL.FILTER.value, card_address=TIGER_CARD_ADDR_FW)
+
+# Set the DMD to full white
+dmd = DMDControl()
+dmd.initialise()
+if not dmd.is_initialised():
+    raise RuntimeError("DMD not initialised.")
+dmd.display_full()
+
+# Set up imaging
+mmc = Core()
+studio = Studio()
 
 def run_experiment():
     
@@ -78,7 +107,7 @@ def run_experiment():
         # field = syncboard.read_hall(0)
         # print(f"Measured Field: {field} mT")
         i += 1
-        time.sleep(interval_s)
+        time.sleep(image_interval_s)
 
     syncboard.set_magnet_current(0)
     syncboard.enable_magnet(False)
