@@ -8,6 +8,10 @@ from pycromanager import Core, Studio
 from sync_board.syncboard.syncboardcontroller import SyncBoardController
 from sync_board.syncboard.serialconnection import SerialConnection
 
+from asitiger.tigercontroller import TigerController
+
+from dmd_socket import DMDControl
+
 led_intensity = 0.1
 image_interval_s = 10
 
@@ -27,6 +31,13 @@ class LED_IDS(Enum):
     LED_505_NM = 6
     LED_538_NM = 7
 
+class FILTER_WHEEL(Enum):
+    FILTER = 0, 
+    BLOCKING = 1, 
+    NO_FILTER = 2
+
+TIGER_CARD_ADDR_FW = 8
+
 date = datetime.now().strftime("%Y-%m-%d")
 save_dir = Path(f"/media/hslab/Data/ImageData/Gabi/{date}/MARY/")
 if not save_dir.exists():
@@ -38,6 +49,19 @@ syncboard_magnet_serial = SerialConnection("/dev/magnet", 115200)
 syncboard_main = SyncBoardController(syncboard_main_serial)
 syncboard_magnet = SyncBoardController(syncboard_magnet_serial)
 
+# $ pip install asitiger
+# Make sure filter wheel is set to the correct position
+tiger = TigerController.from_serial_port("/dev/ttyUSB0")
+tiger.filter_wheel(position=FILTER_WHEEL.FILTER.value, card_address=TIGER_CARD_ADDR_FW)
+
+# Set the DMD to full white
+dmd = DMDControl()
+dmd.initialise()
+if not dmd.is_initialised():
+    raise RuntimeError("DMD not initialised.")
+dmd.display_full()
+
+# Set up imaging
 mmc = Core()
 studio = Studio()
 
